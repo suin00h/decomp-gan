@@ -1,4 +1,5 @@
 dataset/CIFAR10/
 __pycache__
 test.py
+log/
 
