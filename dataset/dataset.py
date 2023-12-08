@@ -48,4 +48,4 @@ if __name__ == "__main__":
     plt.imshow(np.transpose(grid, (1, 2, 0)))
     
     print(list(map(lambda x: get_class_name(x), labels)))
-    plt.show()
+    print(np.transpose(grid, (1, 2, 0)).shape)
