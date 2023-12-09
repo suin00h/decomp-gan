@@ -61,14 +61,14 @@ class Logger():
         plt.savefig(self.logging_path + f'{epoch}.png')
 
 logger = Logger(
-    logging_path='./log/deco_exp1/'
+    logging_path='./log/base_exp1/'
 )
 
 # hyperparameters
 rank_size = 500
 noise_size = 100
 
-epoch = 2000
+epoch = 200
 batch_size = 128
 lr = 2e-4
 
@@ -89,6 +89,7 @@ base_gen = BaseGen(noise_size, num_class)
 disc = Disc(num_class)
 
 decompose_gen = decompose_gen.to(device)
+base_gen = base_gen.to(device)
 disc = disc.to(device)
 disc.train()
 
@@ -98,16 +99,48 @@ opt_disc = optim.Adam(disc.parameters())
 
 crit = nn.BCELoss()
 
+# eval
+if True:
+    import sys
+    from torchvision.utils import save_image
+    
+    # ckpt = torch.load('./log/deco_exp1/1999.pt')
+    # decompose_gen.load_state_dict(ckpt['model'])
+    # decompose_gen.eval()
+    ckpt = torch.load('./log/base_exp1/199.pt')
+    base_gen.load_state_dict(ckpt['model'])
+    base_gen.eval()
+    
+    for i, (images, labels) in enumerate(tqdm(train_loader)):
+        images = images.to(device)
+        labels = labels.to(device)
+        
+        cur_batch_size = images.size(0)
+        noise = torch.randn((cur_batch_size, noise_size), device=device)
+        # fake_images = decompose_gen(noise, labels)
+        fake_images = base_gen(noise, labels)
+        fake_images = (fake_images + torch.abs(torch.min(fake_images))) / (torch.max(fake_images) - torch.min(fake_images))
+        images = images / 2 + 0.5
+        
+        for j in range(cur_batch_size):
+            # save_image(images[j], f'./log/deco_exp1/real/{i * cur_batch_size + j}.png')
+            # save_image(fake_images[j], f'./log/deco_exp1/fake/{i * cur_batch_size + j}.png')
+            save_image(images[j], f'./log/base_exp1/real/{i * cur_batch_size + j}.png')
+            save_image(fake_images[j], f'./log/base_exp1/fake/{i * cur_batch_size + j}.png')
+    
+    sys.exit()
+
+# train
 G_loss_list = []
 D_loss_list = []
 
-# train
 logger.log_msg(f'Predefined labels:')
 logger.log_msg(f'{list(map(get_class_name, logging_label.cpu()))}')
 logger.log_msg(f'Training ...')
 for e in range(epoch):
     logger.log_msg(f'Epoch {e}')
-    decompose_gen = decompose_gen.train()
+    # decompose_gen = decompose_gen.train()
+    base_gen = base_gen.train()
     
     batch_G_loss = []
     batch_D_loss = []
@@ -121,18 +154,21 @@ for e in range(epoch):
         label_fake = torch.full((cur_batch_size,), 0.0, device=device)
         
         # train generator
-        decompose_gen.zero_grad()
+        # decompose_gen.zero_grad()
+        base_gen.zero_grad()
         
         noise = torch.randn((cur_batch_size, noise_size), device=device)
         gen_label = torch.randint(0, num_class, (cur_batch_size,), device=device)
         
-        gen_output = decompose_gen(noise, gen_label)
+        # gen_output = decompose_gen(noise, gen_label)
+        gen_output = base_gen(noise, gen_label)
         
         disc_output = disc(gen_output, gen_label)
         
         loss_gen = crit(disc_output, label_real)
         loss_gen.backward()
-        opt_decompose_gen.step()
+        # opt_decompose_gen.step()
+        opt_base_gen.step()
         
         batch_G_loss.append(loss_gen.item())
         
@@ -153,15 +189,19 @@ for e in range(epoch):
     G_loss_list.append(np.mean(batch_G_loss))
     D_loss_list.append(np.mean(batch_D_loss))
     
-    if e % 50 == 0 or e == epoch-1:
+    if e % 10 == 0 or e == epoch-1:
         logger.log_msg(f'Logging checkpoint ... | G_loss: {G_loss_list[-1]:.2f} | D_loss: {D_loss_list[-1]:.2f}')
-        decompose_gen.eval()
+        # decompose_gen.eval()
+        base_gen.eval()
         
-        fake_image = decompose_gen(logging_noise, logging_label)
+        # fake_image = decompose_gen(logging_noise, logging_label)
+        fake_image = base_gen(logging_noise, logging_label)
         logger.log_state(
             epoch=e,
-            model_state=decompose_gen.state_dict(),
-            opt_state=opt_decompose_gen.state_dict(),
+            # model_state=decompose_gen.state_dict(),
+            model_state=base_gen.state_dict(),
+            # opt_state=opt_decompose_gen.state_dict(),
+            opt_state=opt_base_gen.state_dict(),
             loss_dict={'G_loss': G_loss_list[-1], 'D_loss': D_loss_list[-1]}
         )
         logger.log_image(
