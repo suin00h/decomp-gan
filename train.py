@@ -68,8 +68,8 @@ logger = Logger(
 rank_size = 500
 noise_size = 100
 
-epoch = 1000
-batch_size = 256
+epoch = 2000
+batch_size = 128
 lr = 2e-4
 
 logger.log_msg('Hyperparameter Settings')
